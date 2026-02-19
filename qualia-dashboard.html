@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualia Core Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0b0f1a;
+    --bg-secondary: #111827;
+    --bg-card: #1a2236;
+    --bg-card-hover: #1f2a42;
+    --border: #2a3550;
+    --border-light: #3a4a6a;
+    --text-primary: #e8ecf4;
+    --text-secondary: #8896b3;
+    --text-muted: #5a6a8a;
+    --accent: #3b82f6;
+    --accent-glow: rgba(59, 130, 246, 0.15);
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --info: #06b6d4;
+    --purple: #a78bfa;
+    --pink: #f472b6;
+    --font-sans: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Top nav */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    height: 56px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .topbar-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.02em;
+  }
+
+  .topbar-logo .icon {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+  }
+
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+  }
+
+  .status-pill.disconnected {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+    border-color: rgba(239, 68, 68, 0.2);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Configuration Panel */
+  .config-panel {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 0;
+  }
+
+  .config-panel.open { max-height: 400px; }
+
+  .config-inner {
+    padding: 24px 32px;
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 16px;
+    align-items: end;
+  }
+
+  .field-group label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .field-group input, .field-group select {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field-group input:focus { border-color: var(--accent); }
+  .field-group input::placeholder { color: var(--text-muted); }
+
+  .btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  .btn-primary:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover { border-color: var(--border-light); color: var(--text-primary); }
+
+  .btn-icon {
+    padding: 8px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Main Content */
+  .main {
+    padding: 24px 32px;
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+
+  /* KPI Cards Row */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, transform 0.2s;
+  }
+
+  .kpi-card:hover {
+    border-color: var(--border-light);
+    transform: translateY(-2px);
+  }
+
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+  }
+
+  .kpi-card:nth-child(1)::after { background: linear-gradient(90deg, var(--accent), transparent); }
+  .kpi-card:nth-child(2)::after { background: linear-gradient(90deg, var(--success), transparent); }
+  .kpi-card:nth-child(3)::after { background: linear-gradient(90deg, var(--warning), transparent); }
+  .kpi-card:nth-child(4)::after { background: linear-gradient(90deg, var(--purple), transparent); }
+
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .kpi-value {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .kpi-sub .up { color: var(--success); }
+  .kpi-sub .down { color: var(--danger); }
+
+  /* Chart Grid */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    transition: border-color 0.3s;
+  }
+
+  .chart-card:hover { border-color: var(--border-light); }
+
+  .chart-card.full-width {
+    grid-column: 1 / -1;
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .chart-title {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .chart-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .chart-filters {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-primary);
+    padding: 3px;
+    border-radius: 8px;
+  }
+
+  .chart-filter {
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+    font-family: var(--font-sans);
+  }
+
+  .chart-filter.active {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  .chart-body {
+    position: relative;
+    height: 280px;
+  }
+
+  .chart-body.tall { height: 360px; }
+
+  /* Data Table */
+  .table-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+
+  .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .table-search {
+    padding: 7px 14px;
+    padding-left: 34px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    outline: none;
+    width: 240px;
+    transition: border-color 0.2s;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%235a6a8a' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 12px center;
+  }
+
+  .table-search:focus { border-color: var(--accent); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead th {
+    text-align: left;
+    padding: 12px 24px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    background: rgba(0,0,0,0.15);
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(42, 53, 80, 0.5);
+    transition: background 0.15s;
+  }
+
+  tbody tr:hover { background: var(--bg-card-hover); }
+  tbody tr:last-child { border-bottom: none; }
+
+  tbody td {
+    padding: 14px 24px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .badge-open { background: rgba(59, 130, 246, 0.12); color: var(--accent); }
+  .badge-closed { background: rgba(34, 197, 94, 0.12); color: var(--success); }
+  .badge-pending { background: rgba(245, 158, 11, 0.12); color: var(--warning); }
+  .badge-cancelled { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
+
+  .mono { font-family: var(--font-mono); font-size: 12px; }
+  .text-right { text-align: right; }
+  .fw-600 { font-weight: 600; color: var(--text-primary); }
+
+  /* Loading / Empty states */
+  .empty-state {
+    text-align: center;
+    padding: 60px 40px;
+    color: var(--text-muted);
+  }
+
+  .empty-state .icon-lg {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.4;
+  }
+
+  .empty-state h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+
+  .empty-state p {
+    font-size: 13px;
+    max-width: 360px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  .spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--text-primary);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.error { border-left: 3px solid var(--danger); }
+  .toast.success { border-left: 3px solid var(--success); }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .chart-grid { grid-template-columns: 1fr; }
+    .config-inner { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 640px) {
+    .kpi-row { grid-template-columns: 1fr; }
+    .main { padding: 16px; }
+    .topbar { padding: 0 16px; }
+  }
+
+  /* Fade-in animation */
+  .fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+    opacity: 0;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-in:nth-child(1) { animation-delay: 0.05s; }
+  .fade-in:nth-child(2) { animation-delay: 0.1s; }
+  .fade-in:nth-child(3) { animation-delay: 0.15s; }
+  .fade-in:nth-child(4) { animation-delay: 0.2s; }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <div class="icon">Q</div>
+    <span>Qualia Dashboard</span>
+  </div>
+  <div class="topbar-actions">
+    <div id="statusPill" class="status-pill disconnected">
+      <div class="status-dot"></div>
+      <span id="statusText">Not Connected</span>
+    </div>
+    <button class="btn-icon" onclick="toggleConfig()" title="Settings" id="configToggle">⚙</button>
+    <button class="btn btn-secondary" onclick="loadDemoData()">Load Demo Data</button>
+  </div>
+</div>
+
+<!-- Config Panel -->
+<div id="configPanel" class="config-panel">
+  <div class="config-inner">
+    <div class="field-group">
+      <label>Platform API Endpoint</label>
+      <input type="text" id="apiEndpoint" value="http://localhost:3001/api/graphql" placeholder="http://localhost:3001/api/graphql">
+    </div>
+    <div class="field-group">
+      <label>API Key (Handled by Proxy)</label>
+      <input type="password" id="apiKey" value="proxy-managed" placeholder="Managed by proxy server" disabled>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: end;">
+      <button class="btn btn-primary" onclick="connectAndFetch()">
+        <span id="connectBtnText">Connect & Fetch</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+
+  <!-- KPI Row -->
+  <div class="kpi-row" id="kpiRow">
+    <div class="kpi-card fade-in">
+      <div class="kpi-label">Total Orders</div>
+      <div class="kpi-value" id="kpiTotalOrders">—</div>
+      <div class="kpi-sub"><span id="kpiOrdersSub">Awaiting connection</span></div>
+    </div>
+    <div class="kpi-card fade-in">
+      <div class="kpi-label">Open Orders</div>
+      <div class="kpi-value" id="kpiOpenOrders">—</div>
+      <div class="kpi-sub"><span id="kpiOpenSub">—</span></div>
+    </div>
+    <div class="kpi-card fade-in">
+      <div class="kpi-label">Pending Disbursements</div>
+      <div class="kpi-value" id="kpiPendingDisb">—</div>
+      <div class="kpi-sub"><span id="kpiDisbSub">—</span></div>
+    </div>
+    <div class="kpi-card fade-in">
+      <div class="kpi-label">Avg. Balance</div>
+      <div class="kpi-value" id="kpiAvgBalance">—</div>
+      <div class="kpi-sub"><span id="kpiBalanceSub">—</span></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 1 -->
+  <div class="chart-grid">
+    <div class="chart-card fade-in">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Orders by Status</div>
+          <div class="chart-subtitle">Distribution of current order statuses</div>
+        </div>
+      </div>
+      <div class="chart-body">
+        <canvas id="chartStatus"></canvas>
+      </div>
+    </div>
+    <div class="chart-card fade-in">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Transaction Types</div>
+          <div class="chart-subtitle">Purchase vs. Refinance breakdown</div>
+        </div>
+      </div>
+      <div class="chart-body">
+        <canvas id="chartTxType"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 2 -->
+  <div class="chart-grid">
+    <div class="chart-card full-width fade-in">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Orders Over Time</div>
+          <div class="chart-subtitle">Monthly order volume trend</div>
+        </div>
+        <div class="chart-filters">
+          <button class="chart-filter active" onclick="setTimeRange(this, 6)">6M</button>
+          <button class="chart-filter" onclick="setTimeRange(this, 12)">12M</button>
+          <button class="chart-filter" onclick="setTimeRange(this, 24)">24M</button>
+        </div>
+      </div>
+      <div class="chart-body tall">
+        <canvas id="chartTimeline"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 3 -->
+  <div class="chart-grid">
+    <div class="chart-card fade-in">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Escrow Officer Workload</div>
+          <div class="chart-subtitle">Orders per team member</div>
+        </div>
+      </div>
+      <div class="chart-body">
+        <canvas id="chartOfficers"></canvas>
+      </div>
+    </div>
+    <div class="chart-card fade-in">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Funding Status</div>
+          <div class="chart-subtitle">Disbursement pipeline overview</div>
+        </div>
+      </div>
+      <div class="chart-body">
+        <canvas id="chartFunding"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Orders Table -->
+  <div class="table-card fade-in">
+    <div class="table-header">
+      <div class="table-title">Recent Orders</div>
+      <input type="text" class="table-search" placeholder="Search orders..." oninput="filterOrders(this.value)">
+    </div>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Order #</th>
+            <th>Property</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Close Date</th>
+            <th class="text-right">Balance</th>
+            <th>Escrow Officer</th>
+          </tr>
+        </thead>
+        <tbody id="ordersTableBody">
+          <tr>
+            <td colspan="7">
+              <div class="empty-state">
+                <div class="icon-lg">📊</div>
+                <h3>No Data Yet</h3>
+                <p>Connect to your Qualia API endpoint above, or click "Load Demo Data" to preview the dashboard with sample data.</p>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== STATE =====
+let state = {
+  orders: [],
+  filteredOrders: [],
+  charts: {},
+  connected: false,
+  timeRange: 6
+};
+
+// ===== QUALIA API LAYER =====
+class QualiaAPI {
+  constructor(endpoint, apiKey) {
+    this.endpoint = endpoint.startsWith('http') ? endpoint : `https://${endpoint}`;
+    this.apiKey = apiKey.startsWith('Basic ') ? apiKey : `Basic ${apiKey}`;
+  }
+
+  async query(gqlQuery, variables = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    // Only add auth header if not using the local proxy
+    if (!this.endpoint.includes('localhost')) {
+      headers['Authorization'] = this.apiKey;
+    }
+
+    const response = await fetch(this.endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        query: gqlQuery,
+        variables
+      })
+    });
+
+    if (!response.ok) {
+      const status = response.status;
+      if (status === 401) throw new Error('Unauthorized – check your API key');
+      if (status === 403) throw new Error('Forbidden – API access may be revoked');
+      if (status === 405) throw new Error('Method Not Allowed – check your endpoint URL');
+      if (status === 503) throw new Error('Rate limit exceeded (200 calls/min)');
+      throw new Error(`API error: HTTP ${status}`);
+    }
+
+    const json = await response.json();
+    if (json.errors) {
+      console.warn('GraphQL errors:', json.errors);
+      throw new Error(json.errors[0]?.message || 'GraphQL query error');
+    }
+    return json.data;
+  }
+
+  // Get list of order IDs matching filters
+  async getOrderIds(filter = {}) {
+    const data = await this.query(`
+      query orders($input: OrdersFilter) {
+        orders(filter: $input)
+      }
+    `, { input: filter });
+    return data.orders || [];
+  }
+
+  // Get detailed order data
+  async getOrder(orderId) {
+    const data = await this.query(`
+      query order {
+        order(id: "${orderId}") {
+          id
+          orderNumber
+          createdDate
+          closeDate
+          disbursementDate
+          status
+          transactionType
+          properties {
+            address1
+            address2
+            city
+            state
+            zipcode
+          }
+          settlementTeam {
+            role
+            firstName
+            lastName
+          }
+          accounting {
+            receipts { amount voided }
+            disbursements(statuses: [POSTED, PENDING, VOIDED]) {
+              amount
+              payeeName
+              status
+            }
+          }
+        }
+      }
+    `);
+    return data.order;
+  }
+
+  // Get paginated orders
+  async getOrdersList(first = 20, filter = {}, after = null) {
+    const data = await this.query(`
+      query orders($inputFirst: Int, $inputAfter: String, $inputFilter: OrdersFilter) {
+        ordersList(first: $inputFirst, after: $inputAfter, filter: $inputFilter) {
+          edges {
+            cursor
+            node {
+              id
+              orderNumber
+              createdDate
+              closeDate
+              disbursementDate
+              status
+              transactionType
+              properties {
+                address1
+                city
+                state
+                zipcode
+              }
+              settlementTeam {
+                role
+                firstName
+                lastName
+              }
+              accounting {
+                receipts { amount voided }
+                disbursements(statuses: [POSTED, PENDING]) {
+                  amount
+                  status
+                }
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    `, { inputFirst: first, inputAfter: after, inputFilter: filter });
+    return data.ordersList;
+  }
+}
+
+// ===== CONNECT & FETCH =====
+async function connectAndFetch() {
+  const endpoint = document.getElementById('apiEndpoint').value.trim();
+  const apiKey = document.getElementById('apiKey').value.trim();
+
+  if (!endpoint || !apiKey) {
+    showToast('Please provide both an endpoint and API key', 'error');
+    return;
+  }
+
+  document.getElementById('connectBtnText').textContent = 'Connecting...';
+  const api = new QualiaAPI(endpoint, apiKey);
+
+  try {
+    // Attempt paginated fetch
+    const result = await api.getOrdersList(50);
+    const orders = result.edges.map(e => processOrderNode(e.node));
+
+    state.orders = orders;
+    state.filteredOrders = orders;
+    state.connected = true;
+
+    setStatus(true);
+    updateDashboard();
+    showToast(`Loaded ${orders.length} orders successfully`, 'success');
+    toggleConfig();
+  } catch (err) {
+    console.error(err);
+    showToast(err.message, 'error');
+    setStatus(false);
+  } finally {
+    document.getElementById('connectBtnText').textContent = 'Connect & Fetch';
+  }
+}
+
+function processOrderNode(node) {
+  const escrowOfficer = node.settlementTeam?.find(m => m.role === 'Escrow Officer');
+  const property = node.properties?.[0];
+
+  const totalReceipts = (node.accounting?.receipts || [])
+    .filter(r => !r.voided)
+    .reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+
+  const totalDisb = (node.accounting?.disbursements || [])
+    .filter(d => d.status === 'POSTED')
+    .reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
+
+  const pendingDisb = (node.accounting?.disbursements || [])
+    .filter(d => d.status === 'PENDING')
+    .reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
+
+  return {
+    id: node.id,
+    orderNumber: node.orderNumber || '—',
+    createdDate: node.createdDate ? new Date(node.createdDate) : null,
+    closeDate: node.closeDate ? new Date(node.closeDate) : null,
+    disbursementDate: node.disbursementDate ? new Date(node.disbursementDate) : null,
+    status: node.status || 'UNKNOWN',
+    transactionType: node.transactionType || 'UNKNOWN',
+    address: property ? `${property.address1 || ''}${property.city ? ', ' + property.city : ''}${property.state ? ', ' + property.state : ''}` : '—',
+    escrowOfficer: escrowOfficer ? `${escrowOfficer.firstName} ${escrowOfficer.lastName}` : '—',
+    balance: totalReceipts - totalDisb,
+    pendingDisbursements: pendingDisb,
+    totalReceipts,
+    totalDisbursements: totalDisb
+  };
+}
+
+// ===== DEMO DATA =====
+function loadDemoData() {
+  const statuses = ['OPEN', 'OPEN', 'OPEN', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'PENDING', 'CANCELLED'];
+  const types = ['PURCHASE', 'PURCHASE', 'PURCHASE', 'REFINANCE', 'REFINANCE'];
+  const officers = ['Sarah Chen', 'Marcus Rivera', 'Emily Park', 'James Wilson', 'Diana Flores'];
+  const streets = ['123 Oak Ave', '456 Maple Dr', '789 Pine St', '321 Elm Blvd', '654 Cedar Ln', '987 Birch Way', '147 Spruce Ct', '258 Willow Rd', '369 Ash Pl', '741 Walnut Ave'];
+  const cities = ['San Diego', 'Los Angeles', 'San Francisco', 'Sacramento', 'Irvine', 'Pasadena', 'Oakland', 'San Jose', 'Fresno', 'Long Beach'];
+
+  const orders = [];
+  for (let i = 0; i < 42; i++) {
+    const created = new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000);
+    const closeDate = new Date(created.getTime() + (30 + Math.random() * 60) * 24 * 60 * 60 * 1000);
+    const status = statuses[Math.floor(Math.random() * statuses.length)];
+    const balance = status === 'CLOSED' ? 0 : Math.round(Math.random() * 50000);
+    const pending = status === 'OPEN' ? Math.round(Math.random() * 30000) : 0;
+    const receipts = balance + Math.round(Math.random() * 200000);
+
+    orders.push({
+      id: `demo_${i}`,
+      orderNumber: `QC-${2024000 + i}`,
+      createdDate: created,
+      closeDate: closeDate,
+      disbursementDate: new Date(closeDate.getTime() + 2 * 24 * 60 * 60 * 1000),
+      status,
+      transactionType: types[Math.floor(Math.random() * types.length)],
+      address: `${streets[i % streets.length]}, ${cities[i % cities.length]}, CA`,
+      escrowOfficer: officers[Math.floor(Math.random() * officers.length)],
+      balance,
+      pendingDisbursements: pending,
+      totalReceipts: receipts,
+      totalDisbursements: receipts - balance
+    });
+  }
+
+  state.orders = orders;
+  state.filteredOrders = orders;
+  state.connected = true;
+  setStatus(true, 'Demo Mode');
+  updateDashboard();
+  showToast('Demo data loaded — 42 sample orders', 'success');
+
+  const panel = document.getElementById('configPanel');
+  if (panel.classList.contains('open')) toggleConfig();
+}
+
+// ===== DASHBOARD UPDATE =====
+function updateDashboard() {
+  const o = state.orders;
+  updateKPIs(o);
+  renderCharts(o);
+  renderTable(state.filteredOrders);
+}
+
+function updateKPIs(orders) {
+  const open = orders.filter(o => o.status === 'OPEN');
+  const totalPending = orders.reduce((s, o) => s + o.pendingDisbursements, 0);
+  const avgBalance = open.length ? open.reduce((s, o) => s + o.balance, 0) / open.length : 0;
+
+  document.getElementById('kpiTotalOrders').textContent = orders.length;
+  document.getElementById('kpiOrdersSub').textContent = `Across all statuses`;
+
+  document.getElementById('kpiOpenOrders').textContent = open.length;
+  document.getElementById('kpiOpenSub').innerHTML = `<span class="up">●</span> ${Math.round(open.length / orders.length * 100)}% of total`;
+
+  document.getElementById('kpiPendingDisb').textContent = '$' + formatMoney(totalPending);
+  document.getElementById('kpiDisbSub').textContent = `${orders.filter(o => o.pendingDisbursements > 0).length} orders pending`;
+
+  document.getElementById('kpiAvgBalance').textContent = '$' + formatMoney(avgBalance);
+  document.getElementById('kpiBalanceSub').textContent = `Across ${open.length} open orders`;
+}
+
+function formatMoney(val) {
+  if (val >= 1000000) return (val / 1000000).toFixed(1) + 'M';
+  if (val >= 1000) return (val / 1000).toFixed(1) + 'K';
+  return val.toFixed(0);
+}
+
+function formatDate(d) {
+  if (!d) return '—';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ===== CHART RENDERING =====
+const chartColors = {
+  blue: '#3b82f6',
+  green: '#22c55e',
+  yellow: '#f59e0b',
+  red: '#ef4444',
+  purple: '#a78bfa',
+  pink: '#f472b6',
+  cyan: '#06b6d4',
+  orange: '#f97316'
+};
+
+const chartDefaults = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      labels: {
+        color: '#8896b3',
+        font: { family: "'DM Sans', sans-serif", size: 12 },
+        padding: 16,
+        usePointStyle: true,
+        pointStyleWidth: 10
+      }
+    },
+    tooltip: {
+      backgroundColor: '#1a2236',
+      titleColor: '#e8ecf4',
+      bodyColor: '#8896b3',
+      borderColor: '#2a3550',
+      borderWidth: 1,
+      padding: 12,
+      cornerRadius: 8,
+      titleFont: { family: "'DM Sans', sans-serif", weight: '600' },
+      bodyFont: { family: "'DM Sans', sans-serif" }
+    }
+  }
+};
+
+function renderCharts(orders) {
+  renderStatusChart(orders);
+  renderTxTypeChart(orders);
+  renderTimelineChart(orders);
+  renderOfficersChart(orders);
+  renderFundingChart(orders);
+}
+
+function destroyChart(key) {
+  if (state.charts[key]) {
+    state.charts[key].destroy();
+    delete state.charts[key];
+  }
+}
+
+function renderStatusChart(orders) {
+  destroyChart('status');
+  const counts = {};
+  orders.forEach(o => { counts[o.status] = (counts[o.status] || 0) + 1; });
+
+  const labels = Object.keys(counts);
+  const data = Object.values(counts);
+  const colors = labels.map(l => ({
+    OPEN: chartColors.blue,
+    CLOSED: chartColors.green,
+    PENDING: chartColors.yellow,
+    CANCELLED: chartColors.red
+  }[l] || chartColors.purple));
+
+  state.charts.status = new Chart(document.getElementById('chartStatus'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors, borderWidth: 0, spacing: 3 }]
+    },
+    options: {
+      ...chartDefaults,
+      cutout: '68%',
+      plugins: {
+        ...chartDefaults.plugins,
+        legend: { ...chartDefaults.plugins.legend, position: 'right' }
+      }
+    }
+  });
+}
+
+function renderTxTypeChart(orders) {
+  destroyChart('txType');
+  const counts = {};
+  orders.forEach(o => { counts[o.transactionType] = (counts[o.transactionType] || 0) + 1; });
+
+  state.charts.txType = new Chart(document.getElementById('chartTxType'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(counts),
+      datasets: [{
+        data: Object.values(counts),
+        backgroundColor: [chartColors.cyan, chartColors.purple, chartColors.pink, chartColors.orange],
+        borderWidth: 0,
+        spacing: 3
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      cutout: '68%',
+      plugins: {
+        ...chartDefaults.plugins,
+        legend: { ...chartDefaults.plugins.legend, position: 'right' }
+      }
+    }
+  });
+}
+
+function renderTimelineChart(orders) {
+  destroyChart('timeline');
+  const months = {};
+  const now = new Date();
+  const range = state.timeRange;
+
+  for (let i = range - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    months[key] = { total: 0, purchase: 0, refinance: 0 };
+  }
+
+  orders.forEach(o => {
+    if (!o.createdDate) return;
+    const key = o.createdDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    if (months[key]) {
+      months[key].total++;
+      if (o.transactionType === 'PURCHASE') months[key].purchase++;
+      else months[key].refinance++;
+    }
+  });
+
+  state.charts.timeline = new Chart(document.getElementById('chartTimeline'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(months),
+      datasets: [
+        {
+          label: 'Purchase',
+          data: Object.values(months).map(m => m.purchase),
+          backgroundColor: chartColors.blue + 'cc',
+          borderRadius: 4,
+          borderSkipped: false
+        },
+        {
+          label: 'Refinance',
+          data: Object.values(months).map(m => m.refinance),
+          backgroundColor: chartColors.purple + 'cc',
+          borderRadius: 4,
+          borderSkipped: false
+        }
+      ]
+    },
+    options: {
+      ...chartDefaults,
+      scales: {
+        x: {
+          stacked: true,
+          grid: { display: false },
+          ticks: { color: '#5a6a8a', font: { family: "'DM Sans', sans-serif", size: 11 } },
+          border: { display: false }
+        },
+        y: {
+          stacked: true,
+          grid: { color: 'rgba(42,53,80,0.4)', drawBorder: false },
+          ticks: { color: '#5a6a8a', font: { family: "'DM Sans', sans-serif", size: 11 } },
+          border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+function renderOfficersChart(orders) {
+  destroyChart('officers');
+  const counts = {};
+  orders.forEach(o => {
+    if (o.escrowOfficer !== '—') counts[o.escrowOfficer] = (counts[o.escrowOfficer] || 0) + 1;
+  });
+
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const colors = [chartColors.blue, chartColors.cyan, chartColors.purple, chartColors.pink, chartColors.green, chartColors.yellow, chartColors.orange, chartColors.red];
+
+  state.charts.officers = new Chart(document.getElementById('chartOfficers'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(s => s[0]),
+      datasets: [{
+        data: sorted.map(s => s[1]),
+        backgroundColor: sorted.map((_, i) => colors[i % colors.length] + 'cc'),
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      indexAxis: 'y',
+      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      scales: {
+        x: {
+          grid: { color: 'rgba(42,53,80,0.4)', drawBorder: false },
+          ticks: { color: '#5a6a8a', font: { family: "'DM Sans', sans-serif", size: 11 } },
+          border: { display: false }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: '#8896b3', font: { family: "'DM Sans', sans-serif", size: 12 } },
+          border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+function renderFundingChart(orders) {
+  destroyChart('funding');
+  const now = new Date();
+  let late = 0, upcoming = 0, funded = 0, noDate = 0;
+
+  orders.filter(o => o.status === 'OPEN').forEach(o => {
+    if (!o.disbursementDate) { noDate++; return; }
+    if (o.balance > 0 && o.disbursementDate < now) late++;
+    else if (o.balance > 0) upcoming++;
+    else funded++;
+  });
+
+  state.charts.funding = new Chart(document.getElementById('chartFunding'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Late (Past Due)', 'Upcoming (Has Balance)', 'Funded (Zero Balance)', 'No Disb. Date'],
+      datasets: [{
+        data: [late, upcoming, funded, noDate],
+        backgroundColor: [chartColors.red + 'dd', chartColors.yellow + 'dd', chartColors.green + 'dd', '#3a4a6a'],
+        borderWidth: 0,
+        spacing: 3
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      cutout: '68%',
+      plugins: {
+        ...chartDefaults.plugins,
+        legend: { ...chartDefaults.plugins.legend, position: 'right' }
+      }
+    }
+  });
+}
+
+function setTimeRange(btn, range) {
+  state.timeRange = range;
+  document.querySelectorAll('.chart-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTimelineChart(state.orders);
+}
+
+// ===== TABLE =====
+function renderTable(orders) {
+  const tbody = document.getElementById('ordersTableBody');
+  if (!orders.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon-lg">📊</div><h3>No Orders Found</h3><p>Try adjusting your search or filters.</p></div></td></tr>`;
+    return;
+  }
+
+  const sorted = [...orders].sort((a, b) => (b.createdDate || 0) - (a.createdDate || 0));
+
+  tbody.innerHTML = sorted.map(o => `
+    <tr>
+      <td class="mono fw-600">${o.orderNumber}</td>
+      <td>${o.address}</td>
+      <td><span class="badge badge-${o.transactionType === 'PURCHASE' ? 'open' : 'pending'}">${o.transactionType}</span></td>
+      <td><span class="badge badge-${o.status.toLowerCase()}">${o.status}</span></td>
+      <td class="mono">${formatDate(o.closeDate)}</td>
+      <td class="mono text-right fw-600">${o.balance > 0 ? '$' + o.balance.toLocaleString() : '<span style="color: var(--success)">$0</span>'}</td>
+      <td>${o.escrowOfficer}</td>
+    </tr>
+  `).join('');
+}
+
+function filterOrders(query) {
+  const q = query.toLowerCase();
+  state.filteredOrders = state.orders.filter(o =>
+    o.orderNumber.toLowerCase().includes(q) ||
+    o.address.toLowerCase().includes(q) ||
+    o.escrowOfficer.toLowerCase().includes(q) ||
+    o.transactionType.toLowerCase().includes(q) ||
+    o.status.toLowerCase().includes(q)
+  );
+  renderTable(state.filteredOrders);
+}
+
+// ===== UTILITIES =====
+function toggleConfig() {
+  document.getElementById('configPanel').classList.toggle('open');
+}
+
+function setStatus(connected, label) {
+  const pill = document.getElementById('statusPill');
+  const text = document.getElementById('statusText');
+  pill.className = 'status-pill' + (connected ? '' : ' disconnected');
+  text.textContent = label || (connected ? 'Connected' : 'Not Connected');
+}
+
+function showToast(message, type = 'info') {
+  const toast = document.getElementById('toast');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `${type === 'error' ? '⚠' : '✓'} ${message}`;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 4000);
+}
+
+// Auto-connect on load with pre-filled credentials
+document.addEventListener('DOMContentLoaded', () => {
+  const endpoint = document.getElementById('apiEndpoint').value.trim();
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (endpoint && apiKey) {
+    connectAndFetch();
+  }
+});
+</script>
+</body>
+</html>
